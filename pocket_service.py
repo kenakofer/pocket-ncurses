@@ -45,31 +45,35 @@ def save_access_token(config, token):
         config.write(f)
     print("Saved the access token to", config_file)
 
-def fetch_all_items():
+def fetch_all_items(pocket_instance):
     dictionary = pocket_instance.get(state="all")[0]['list']
     return [{**v, 'id': k} for k,v in dictionary.items()]
-
 
 def filter_items_with_status(all_items, status):
     return filter(lambda item: item['status'] == status, all_items)
 
-access_token = None
-if 'access_token' in config.options('main'):
-    print("Using the access token stored in", config_file)
-    access_token = config.get('main', 'access_token')
-else:
-    save_access_token(config, get_access_token())
+def get_pocket_instance():
+    access_token = None
+    if 'access_token' in config.options('main'):
+        print("Using the access token stored in", config_file)
+        access_token = config.get('main', 'access_token')
+    else:
+        save_access_token(config, get_access_token())
 
-pocket_instance = Pocket(CONSUMER_KEY, access_token)
-print("Authentication was successful!")
+    pocket_instance = Pocket(CONSUMER_KEY, access_token)
+    print("Authentication was successful!")
+    return pocket_instance
 
-for item in fetch_all_items():
-    if item['is_article']:
-        if item['status'] == ITEM_ARCHIVED:
-            print("  ARCHIVED", item['id'], item['resolved_title'] or item['given_title'] or "[NO TITLE]")
-        else:
-            print(item['id'], item['status'], item['resolved_title'] or item['given_title'] or "[NOTITLE]")
 
-# Run this in a python3 repl to mess around with it:
-# exec(open("hello_world.py").read())
+
+if __name__ == "__main__":
+    for item in fetch_all_items(get_pocket_instance()):
+        if item['is_article']:
+            if item['status'] == ITEM_ARCHIVED:
+                print("  ARCHIVED", item['id'], item['resolved_title'] or item['given_title'] or "[NO TITLE]", item['excerpt'])
+            else:
+                print(item['id'], item['status'], item['resolved_title'] or item['given_title'] or "[NOTITLE]", item['excerpt'])
+
+    # Run this in a python3 repl to mess around with it:
+    # exec(open("hello_world.py").read())
 

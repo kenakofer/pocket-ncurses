@@ -1,1 +1,3 @@
+*.swp
 config.ini
+__pycache__
