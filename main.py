@@ -4,6 +4,42 @@ import sys,os
 import curses
 from pocket_service import get_pocket_instance, fetch_all_items
 
+def pad_text(string, pad_before=0, pad_after=0, total_length=-1):
+    if pad_before > 0:
+        string = (" " * pad_before) + string
+    if pad_after > 0:
+        string = string + (" " * pad_after)
+    if total_length > 0:
+        string = (string + (" " * 1000))[:total_length]
+    return string
+
+def render_item_panel(panel, items, selected_item_index):
+    panel.clear()
+    height, width = panel.getmaxyx()
+    for y in range(0,49):
+        if y == selected_item_index:
+            panel.attron(curses.color_pair(3))
+        panel.addstr(2*y+1,3, pad_text(items[y]['resolved_title'], total_length=47))
+        panel.addstr(2*y+2,3, pad_text(items[y]['excerpt'], pad_before=4, total_length=47))
+        if y == selected_item_index:
+            panel.attroff(curses.color_pair(3))
+    panel.border()
+
+def wrap_text(text, line_width):
+    lines = []
+    while len(text) > 0:
+        lines.append(text[:line_width])
+        text = text[line_width:]
+    return "\n".join(lines)
+
+
+def render_reading_panel(panel, text):
+    panel.clear()
+    height, width = panel.getmaxyx()
+    panel.addstr(wrap_text(text, width - 10))
+    panel.border()
+
+
 def draw_menu(stdscr):
     k = 0
     cursor_x = 0
@@ -15,11 +51,10 @@ def draw_menu(stdscr):
     stdscr.clear()
     stdscr.refresh()
 
-    pad = curses.newpad(100,50)
-    for y in range(0,49):
-        pad.addstr(2*y,3, pocket_items[y]['resolved_title'][0:47])
-        pad.addstr(2*y+1,3, ("   "+pocket_items[y]['excerpt'])[0:47])
-    pad.border()
+    item_panel = curses.newpad(100,50)
+    selected_item_index = 0
+
+    reading_panel = curses.newpad(200,100)
 
     # Start colors in curses
     curses.start_color()
@@ -35,25 +70,15 @@ def draw_menu(stdscr):
         height, width = stdscr.getmaxyx()
 
         if k == curses.KEY_DOWN:
-            cursor_y = cursor_y + 1
+            selected_item_index += 1
         elif k == curses.KEY_UP:
-            cursor_y = cursor_y - 1
-        elif k == curses.KEY_RIGHT:
-            cursor_x = cursor_x + 1
-        elif k == curses.KEY_LEFT:
-            cursor_x = cursor_x - 1
-
-        cursor_x = max(0, cursor_x)
-        cursor_x = min(width-1, cursor_x)
-
-        cursor_y = max(0, cursor_y)
-        cursor_y = min(height-1, cursor_y)
+            selected_item_index = max(0, selected_item_index-1)
 
         # Declaration of strings
         title = "Curses example"[:width-1]
         subtitle = "Written by Clay McLeod"[:width-1]
         keystr = "Last key pressed: {}".format(k)[:width-1]
-        statusbarstr = "Press 'q' to exit | STATUS BAR | Pos: {}, {}".format(cursor_x, cursor_y)
+        statusbarstr = "Press 'q' to exit"
         if k == 0:
             keystr = "No key press detected..."[:width-1]
 
@@ -93,13 +118,17 @@ def draw_menu(stdscr):
         # Refresh the screen
         stdscr.refresh()
 
-        # Displays a section of the pad in the middle of the screen.
+
+        render_item_panel(item_panel, pocket_items, selected_item_index)
         # (0,0) : coordinate of upper-left corner of pad area to display.
         # (5,5) : coordinate of upper-left corner of window area to be filled
         #         with pad content.
         # (20, 75) : coordinate of lower-right corner of window area to be
         #          : filled with pad content.
-        pad.refresh( 0,0, 1,0, height-3,4000)
+        item_panel.refresh( 0,0, 1,0, height-3,50)
+
+        render_reading_panel(reading_panel, "aoesnuth aeuosnthaoeu euao aoeu ausnth asnthsnthsnt" * 1)
+        reading_panel.refresh( 0,0, 0,50, height-3,149)
 
         # Wait for next input
         k = stdscr.getch()

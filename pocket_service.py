@@ -47,7 +47,7 @@ def save_access_token(config, token):
 
 def fetch_all_items(pocket_instance):
     dictionary = pocket_instance.get(state="all")[0]['list']
-    return [{**v, 'id': k} for k,v in dictionary.items()]
+    return [{**v, 'id': k} for k,v in dictionary.items() if v['resolved_title'] or v['excerpt']]
 
 def filter_items_with_status(all_items, status):
     return filter(lambda item: item['status'] == status, all_items)
