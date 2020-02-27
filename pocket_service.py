@@ -5,8 +5,10 @@ from pocket import Pocket
 from sys import exit
 from time import sleep
 from configparser import ConfigParser
+from ast import literal_eval
 
 config_file = "config.ini"
+cache_file = ".cache"
 
 config = ConfigParser()
 config.read(config_file)
@@ -36,8 +38,17 @@ def get_access_token():
     print("Got an access token")
     return user_credentials['access_token']
 
-def fetch_all_items(pocket_instance):
-    return pocket_instance.get(state=0)[0]['list']
+def load_cached_items():
+    try:
+        with open(cache_file, 'r') as f:
+            return literal_eval(f.read())
+    except:
+        return None
+
+def save_cached_items(items):
+    print('here with items:', items)
+    with open(cache_file, 'w') as f:
+        f.write(str(items))
 
 def save_access_token(config, token):
     config.set('main', 'access_token', token)
@@ -46,7 +57,10 @@ def save_access_token(config, token):
     print("Saved the access token to", config_file)
 
 def fetch_all_items(pocket_instance):
-    dictionary = pocket_instance.get(state="all")[0]['list']
+    dictionary = load_cached_items()
+    if dictionary is None:
+        dictionary = pocket_instance.get(state="all")[0]['list']
+        save_cached_items(dictionary)
     return [{**v, 'id': k} for k,v in dictionary.items() if v['resolved_title'] or v['excerpt']]
 
 def filter_items_with_status(all_items, status):
