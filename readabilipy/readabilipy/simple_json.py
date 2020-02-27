@@ -16,7 +16,7 @@ def simple_json_from_html_string(html, content_digests=False, node_indexes=False
         # Write input HTML to temporary file so it is available to the node.js script
         html_path = os.path.join(temp_dir, "full.html")
         with open(html_path, 'w') as f:
-            f.write(html)
+            f.write(str(html))
 
         # Call Mozilla's Readability.js Readability.parse() function via node, writing output to a temporary file
         article_json_path = os.path.join(temp_dir, "article.json")

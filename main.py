@@ -3,6 +3,11 @@
 import sys,os
 import curses
 from pocket_service import get_pocket_instance, fetch_all_items
+from urllib import request
+
+def get_text_from_url(url):
+    response = request.urlopen(request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})) 
+    return response.read()[:500]
 
 def pad_text(string, pad_before=0, pad_after=0, total_length=-1):
     if pad_before > 0:
@@ -36,14 +41,14 @@ def wrap_text(text, line_width):
 def render_reading_panel(panel, text):
     panel.clear()
     height, width = panel.getmaxyx()
-    panel.addstr(wrap_text(text, width - 10))
+    #panel.addstr(wrap_text(text, width - 10))
+    panel.addstr(text)
     panel.border()
 
 
 def draw_menu(stdscr):
     k = 0
-    cursor_x = 0
-    cursor_y = 0
+    height, width = stdscr.getmaxyx()
 
     pocket_items = fetch_all_items(get_pocket_instance())
 
@@ -51,10 +56,13 @@ def draw_menu(stdscr):
     stdscr.clear()
     stdscr.refresh()
 
-    item_panel = curses.newpad(100,50)
+    item_panel_width = 50
+    reading_panel_width = width - 50
+
+    item_panel = curses.newpad(1000,item_panel_width)
     selected_item_index = 0
 
-    reading_panel = curses.newpad(200,100)
+    reading_panel = curses.newpad(2000,reading_panel_width)
 
     # Start colors in curses
     curses.start_color()
@@ -113,7 +121,6 @@ def draw_menu(stdscr):
         stdscr.addstr(start_y + 1, start_x_subtitle, subtitle)
         stdscr.addstr(start_y + 3, (width // 2) - 2, '-' * 4)
         stdscr.addstr(start_y + 5, start_x_keystr, keystr)
-        stdscr.move(cursor_y, cursor_x)
 
         # Refresh the screen
         stdscr.refresh()
@@ -125,10 +132,10 @@ def draw_menu(stdscr):
         #         with pad content.
         # (20, 75) : coordinate of lower-right corner of window area to be
         #          : filled with pad content.
-        item_panel.refresh( 0,0, 1,0, height-3,50)
+        item_panel.refresh( 0,0, 1,0, height-3,item_panel_width)
 
-        render_reading_panel(reading_panel, "aoesnuth aeuosnthaoeu euao aoeu ausnth asnthsnthsnt" * 1)
-        reading_panel.refresh( 0,0, 0,50, height-3,149)
+        render_reading_panel(reading_panel, get_text_from_url('https://slatestarcodex.com'))
+        reading_panel.refresh( 0,0, 1,item_panel_width, height-3,width-1)
 
         # Wait for next input
         k = stdscr.getch()
