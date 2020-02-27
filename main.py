@@ -4,10 +4,12 @@ import sys,os
 import curses
 from pocket_service import get_pocket_instance, fetch_all_items
 from urllib import request
+from readabilipy.readabilipy import simple_json_from_html_string
 
-def get_text_from_url(url):
-    response = request.urlopen(request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})) 
-    return response.read()[:500]
+def get_paragraphs_from_url(url):
+    response = request.urlopen(request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})).read()
+    json = simple_json_from_html_string(response, use_readability=True)
+    return [d['text'] for d in json["plain_text"]]
 
 def pad_text(string, pad_before=0, pad_after=0, total_length=-1):
     if pad_before > 0:
@@ -38,12 +40,14 @@ def wrap_text(text, line_width):
     return "\n".join(lines)
 
 
-def render_reading_panel(panel, text):
+def render_reading_panel(panel, paragraphs):
     panel.clear()
     height, width = panel.getmaxyx()
     #panel.addstr(wrap_text(text, width - 10))
-    panel.addstr(text)
-    panel.border()
+    for p in paragraphs[:100]:
+        panel.addstr(p.strip().replace('\\n', '').replace('\\t', '').replace('\\xe2\\x80\\x99', "'"))
+        panel.addstr("\n")
+    # panel.border()
 
 
 def draw_menu(stdscr):
@@ -134,7 +138,8 @@ def draw_menu(stdscr):
         #          : filled with pad content.
         item_panel.refresh( 0,0, 1,0, height-3,item_panel_width)
 
-        render_reading_panel(reading_panel, get_text_from_url('https://slatestarcodex.com'))
+        url = pocket_items[selected_item_index]['resolved_url']
+        render_reading_panel(reading_panel, get_paragraphs_from_url(url))
         reading_panel.refresh( 0,0, 1,item_panel_width, height-3,width-1)
 
         # Wait for next input
