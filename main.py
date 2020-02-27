@@ -1,15 +1,39 @@
 #!/usr/bin/env python3
 
-import sys,os
+from os import remove
 import curses
 from pocket_service import get_pocket_instance, fetch_all_items
 from urllib import request
 from readabilipy.readabilipy import simple_json_from_html_string
+from ast import literal_eval
+
+result_cache_prefix = '.cache/urls/'
+
+def url_to_cache(url):
+    return result_cache_prefix + '-'.join(url.replace('https://', '').replace('http://', '').split('/')).strip('-')
+
+def load_cached_result(url):
+    try:
+        with open(url_to_cache(url), 'r') as f:
+            return literal_eval(f.read())
+    except:
+        return None
+
+def save_cached_result(result, url):
+    with open(url_to_cache(url), 'w') as f:
+        f.write(str(result))
+
+def remove_cached_url(url):
+    remove(url_to_cache(url))
 
 def get_paragraphs_from_url(url):
-    response = request.urlopen(request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})).read()
-    json = simple_json_from_html_string(response, use_readability=True)
-    return [d['text'] for d in json["plain_text"]]
+    result = load_cached_result(url)
+    if result == None:
+        response = request.urlopen(request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})).read()
+        json = simple_json_from_html_string(response, use_readability=True)
+        result = [d['text'] for d in json["plain_text"]]
+        save_cached_result(result, url)
+    return result
 
 def pad_text(string, pad_before=0, pad_after=0, total_length=-1):
     if pad_before > 0:
@@ -33,21 +57,32 @@ def render_item_panel(panel, items, selected_item_index):
     panel.border()
 
 def wrap_text(text, line_width):
-    lines = []
-    while len(text) > 0:
-        lines.append(text[:line_width])
-        text = text[line_width:]
-    return "\n".join(lines)
+    while len(text) > line_width:
+        try:
+            space_index = text[:line_width].rindex(' ')
+            yield text[:space_index]
+            text = text[space_index+1:]
+        except:
+            yield text[:line_width]
+            text = text[line_width:]
+    yield text
 
+def convert_text_for_display(text):
+    return text.strip().replace('\\n', '').replace('\\t', '').replace('\n', '').replace('\\xe2\\x80\\x99', "'")
 
 def render_reading_panel(panel, paragraphs):
     panel.clear()
     height, width = panel.getmaxyx()
-    #panel.addstr(wrap_text(text, width - 10))
+    # panel.addstr(str(paragraphs))
+    # return
+    padding = 2
+    y = 1
     for p in paragraphs[:100]:
-        panel.addstr(p.strip().replace('\\n', '').replace('\\t', '').replace('\\xe2\\x80\\x99', "'"))
-        panel.addstr("\n")
-    # panel.border()
+        block = convert_text_for_display(p)
+        for line in wrap_text(block, width - 2*padding):
+            panel.addstr(y, padding, line)
+            y+=1
+    panel.border()
 
 
 def draw_menu(stdscr):
@@ -61,7 +96,7 @@ def draw_menu(stdscr):
     stdscr.refresh()
 
     item_panel_width = 50
-    reading_panel_width = width - 50
+    reading_panel_width = min(width - item_panel_width, 150)
 
     item_panel = curses.newpad(1000,item_panel_width)
     selected_item_index = 0
@@ -74,73 +109,58 @@ def draw_menu(stdscr):
     curses.init_pair(2, curses.COLOR_RED, curses.COLOR_BLACK)
     curses.init_pair(3, curses.COLOR_BLACK, curses.COLOR_WHITE)
 
+    top_reader_line = 0
+
+    reader_panel_needs_refresh = True
+    item_panel_needs_render = True
+    reader_panel_needs_render = True
+
     # Loop where k is the last character pressed
     while (k != ord('q')):
-
-        # Initialization
-        stdscr.clear()
         height, width = stdscr.getmaxyx()
 
-        if k == curses.KEY_DOWN:
+        # Move up and down in item list
+        if k == ord('J'):
             selected_item_index += 1
-        elif k == curses.KEY_UP:
+            reader_panel_needs_render = True
+            item_panel_needs_render = True
+            top_reader_line = 0
+        elif k == ord('K'):
             selected_item_index = max(0, selected_item_index-1)
+            reader_panel_needs_render = True
+            item_panel_needs_render = True
+            top_reader_line = 0
 
-        # Declaration of strings
-        title = "Curses example"[:width-1]
-        subtitle = "Written by Clay McLeod"[:width-1]
-        keystr = "Last key pressed: {}".format(k)[:width-1]
-        statusbarstr = "Press 'q' to exit"
-        if k == 0:
-            keystr = "No key press detected..."[:width-1]
+        # Move up and down in reader panel
+        elif k == curses.KEY_DOWN or k == ord('j'):
+            top_reader_line += 1
+            reader_panel_needs_refresh = True
+        elif k == curses.KEY_UP or k == ord('k'):
+            top_reader_line = max(0, top_reader_line-1)
+            reader_panel_needs_refresh = True
 
-        # Centering calculations
-        start_x_title = int((width // 2) - (len(title) // 2) - len(title) % 2)
-        start_x_subtitle = int((width // 2) - (len(subtitle) // 2) - len(subtitle) % 2)
-        start_x_keystr = int((width // 2) - (len(keystr) // 2) - len(keystr) % 2)
-        start_y = int((height // 2) - 2)
-
-        # Rendering some text
-        whstr = "Width: {}, Height: {}".format(width, height)
-        stdscr.addstr(0, 0, whstr, curses.color_pair(1))
-
-        # Render status bar
-        stdscr.attron(curses.color_pair(3))
-        stdscr.addstr(height-1, 0, statusbarstr)
-        stdscr.addstr(height-1, len(statusbarstr), " " * (width - len(statusbarstr) - 1))
-        stdscr.attroff(curses.color_pair(3))
-
-        # Turning on attributes for title
-        stdscr.attron(curses.color_pair(2))
-        stdscr.attron(curses.A_BOLD)
-
-        # Rendering title
-        stdscr.addstr(start_y, start_x_title, title)
-
-        # Turning off attributes for title
-        stdscr.attroff(curses.color_pair(2))
-        stdscr.attroff(curses.A_BOLD)
-
-        # Print rest of text
-        stdscr.addstr(start_y + 1, start_x_subtitle, subtitle)
-        stdscr.addstr(start_y + 3, (width // 2) - 2, '-' * 4)
-        stdscr.addstr(start_y + 5, start_x_keystr, keystr)
-
-        # Refresh the screen
-        stdscr.refresh()
-
-
-        render_item_panel(item_panel, pocket_items, selected_item_index)
-        # (0,0) : coordinate of upper-left corner of pad area to display.
-        # (5,5) : coordinate of upper-left corner of window area to be filled
-        #         with pad content.
-        # (20, 75) : coordinate of lower-right corner of window area to be
-        #          : filled with pad content.
-        item_panel.refresh( 0,0, 1,0, height-3,item_panel_width)
+        # Force a refresh of the article that skips the cache
+        elif k == ord('R'):
+            remove_cached_url(url)
+            reader_panel_needs_render = True
 
         url = pocket_items[selected_item_index]['resolved_url']
-        render_reading_panel(reading_panel, get_paragraphs_from_url(url))
-        reading_panel.refresh( 0,0, 1,item_panel_width, height-3,width-1)
+
+        if item_panel_needs_render:
+            render_item_panel(item_panel, pocket_items, selected_item_index)
+            item_panel.refresh( 0,0, 1,0, height-3,item_panel_width)
+
+        if reader_panel_needs_render:
+            reader_panel_needs_refresh = True
+            render_reading_panel(reading_panel, get_paragraphs_from_url(url))
+
+        if reader_panel_needs_refresh:
+            reading_panel_bounds = [1, item_panel_width, height-3, width-1]
+            reading_panel.refresh( top_reader_line,0, reading_panel_bounds[0],reading_panel_bounds[1], reading_panel_bounds[2],reading_panel_bounds[3])
+
+        reader_panel_needs_refresh = False
+        item_panel_needs_render = False
+        reader_panel_needs_render = False
 
         # Wait for next input
         k = stdscr.getch()

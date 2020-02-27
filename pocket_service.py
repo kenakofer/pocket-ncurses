@@ -8,7 +8,7 @@ from configparser import ConfigParser
 from ast import literal_eval
 
 config_file = "config.ini"
-cache_file = ".cache"
+listing_cache_file = ".cache/listing"
 
 config = ConfigParser()
 config.read(config_file)
@@ -40,14 +40,14 @@ def get_access_token():
 
 def load_cached_items():
     try:
-        with open(cache_file, 'r') as f:
+        with open(listing_cache_file, 'r') as f:
             return literal_eval(f.read())
     except:
         return None
 
 def save_cached_items(items):
     print('here with items:', items)
-    with open(cache_file, 'w') as f:
+    with open(listing_cache_file, 'w') as f:
         f.write(str(items))
 
 def save_access_token(config, token):
