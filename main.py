@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 
-from os import remove
+from os import remove, makedirs
 import curses
 from pocket_service import get_pocket_instance, fetch_all_items
 from urllib import request
 from readabilipy.readabilipy import simple_json_from_html_string
 from ast import literal_eval
 
-result_cache_prefix = '.cache/urls/'
+result_cache_folder = '.cache/urls/'
+makedirs('.cache/urls/', exist_ok=True)
 
 def url_to_cache(url):
-    return result_cache_prefix + '-'.join(url.replace('https://', '').replace('http://', '').split('/')).strip('-')
+    return result_cache_folder + '-'.join(url.replace('https://', '').replace('http://', '').split('/')).strip('-')
 
 def load_cached_result(url):
     try:
@@ -26,13 +27,16 @@ def save_cached_result(result, url):
 def remove_cached_url(url):
     remove(url_to_cache(url))
 
-def get_paragraphs_from_url(url):
+def get_paragraphs_from_url(url, stdscr):
     result = load_cached_result(url)
     if result == None:
+        set_status_text(stdscr, 'Fetching '+url+'...')
         response = request.urlopen(request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})).read()
+        set_status_text(stdscr, 'Converting '+url+'...')
         json = simple_json_from_html_string(response, use_readability=True)
         result = [d['text'] for d in json["plain_text"]]
         save_cached_result(result, url)
+    set_status_text(stdscr, 'Successfully loaded '+url+'.')
     return result
 
 def pad_text(string, pad_before=0, pad_after=0, total_length=-1):
@@ -84,12 +88,20 @@ def render_reading_panel(panel, paragraphs):
             y+=1
     panel.border()
 
+def set_status_text(stdscr, text):
+    height, width = stdscr.getmaxyx()
+    stdscr.addstr(height-1, 0, pad_text(text, total_length=width-1), curses.A_REVERSE)
+    stdscr.refresh()
 
 def draw_menu(stdscr):
     k = 0
     height, width = stdscr.getmaxyx()
 
-    pocket_items = fetch_all_items(get_pocket_instance())
+    set_status_text(stdscr, 'Logging into pocket...')
+    pocket_instance = get_pocket_instance()
+    set_status_text(stdscr, 'Loading your listing...')
+    pocket_items = fetch_all_items(pocket_instance)
+    set_status_text(stdscr, 'Done.')
 
     # Clear and refresh the screen for a blank canvas
     stdscr.clear()
@@ -102,6 +114,9 @@ def draw_menu(stdscr):
     selected_item_index = 0
 
     reading_panel = curses.newpad(2000,reading_panel_width)
+
+    status_panel_width = width
+    status_panel = curses.newpad(1,status_panel_width)
 
     # Start colors in curses
     curses.start_color()
@@ -152,7 +167,7 @@ def draw_menu(stdscr):
 
         if reader_panel_needs_render:
             reader_panel_needs_refresh = True
-            render_reading_panel(reading_panel, get_paragraphs_from_url(url))
+            render_reading_panel(reading_panel, get_paragraphs_from_url(url, stdscr))
 
         if reader_panel_needs_refresh:
             reading_panel_bounds = [1, item_panel_width, height-3, width-1]
