@@ -46,7 +46,6 @@ def load_cached_items():
         return None
 
 def save_cached_items(items):
-    print('here with items:', items)
     with open(listing_cache_file, 'w') as f:
         f.write(str(items))
 
