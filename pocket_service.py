@@ -56,6 +56,9 @@ def save_access_token(config, token):
         config.write(f)
     print("Saved the access token to", config_file)
 
+def clear_local_cache():
+    os.remove(listing_cache_file)
+
 def fetch_all_items(pocket_instance):
     dictionary = load_cached_items()
     if dictionary is None:
